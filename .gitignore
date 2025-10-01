@@ -9,3 +9,4 @@ data/raw/*
 data/tmp/
 notebooks/.ipynb_checkpoints/
 !notebooks/.gitkeep
+CLAUDE.md

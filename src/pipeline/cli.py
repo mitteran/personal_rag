@@ -19,9 +19,26 @@ app = typer.Typer(help="Utilities for the local RAG system.")
 @app.command()
 def ingest(
     content_dir: Path = typer.Argument(..., help="Directory with source documents."),
-    reindex: bool = typer.Option(False, "--reindex", "-r", help="Drop and rebuild the vector collection."),
-    config: Path = typer.Option(Path("config/settings.yaml"), "--config", help="Path to the YAML configuration file."),
+    reindex: bool = typer.Option(
+        False, "--reindex", "-r", help="Drop and rebuild the vector collection."
+    ),
+    config: Path = typer.Option(
+        Path("config/settings.yaml"),
+        "--config",
+        help="Path to the YAML configuration file.",
+    ),
 ):
+    """Load documents, chunk them, and persist embeddings in the vector store.
+
+    Parameters
+    ----------
+    content_dir:
+        Directory containing the raw corpus files to ingest.
+    reindex:
+        When ``True``, drop any existing collection before rebuilding it.
+    config:
+        Path to the settings file with database and embedding configuration.
+    """
     try:
         chunk_count = ingest_corpus(content_dir, reindex=reindex, config_path=config)
     except MissingOpenAIKeyError as exc:
@@ -37,9 +54,26 @@ def ingest(
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Natural language query."),
-    top_k: int = typer.Option(None, "--top-k", help="Override number of retrieved chunks."),
-    config: Path = typer.Option(Path("config/settings.yaml"), "--config", help="Path to the YAML configuration file."),
+    top_k: int = typer.Option(
+        None, "--top-k", help="Override number of retrieved chunks."
+    ),
+    config: Path = typer.Option(
+        Path("config/settings.yaml"),
+        "--config",
+        help="Path to the YAML configuration file.",
+    ),
 ):
+    """Run a single-shot query against the indexed corpus and print the answer.
+
+    Parameters
+    ----------
+    question:
+        Natural-language prompt passed to the retriever and LLM.
+    top_k:
+        Optional override for how many context chunks to retrieve.
+    config:
+        Path to the YAML settings file to override the default configuration.
+    """
     try:
         answer, sources = query(question, top_k=top_k, config_path=config)
     except MissingOpenAIKeyError as exc:
@@ -59,9 +93,24 @@ def ask(
 
 @app.command()
 def chat(
-    config: Path = typer.Option(Path("config/settings.yaml"), "--config", help="Path to the YAML configuration file."),
-    top_k: int = typer.Option(None, "--top-k", help="Override number of retrieved chunks."),
+    config: Path = typer.Option(
+        Path("config/settings.yaml"),
+        "--config",
+        help="Path to the YAML configuration file.",
+    ),
+    top_k: int = typer.Option(
+        None, "--top-k", help="Override number of retrieved chunks."
+    ),
 ):
+    """Start an interactive chat session backed by the local retrieval pipeline.
+
+    Parameters
+    ----------
+    config:
+        Path to the YAML configuration file to load pipeline settings.
+    top_k:
+        Optional override for how many retrieval chunks to supply per turn.
+    """
     try:
         session_id = start_chat_session()
     except Exception as exc:  # pragma: no cover - defensive guard
@@ -95,7 +144,9 @@ def chat(
         except MissingOpenAIKeyError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)
             raise typer.Exit(code=1) from exc
-        except Exception as exc:  # pragma: no cover - unexpected failure surfaced to user
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - unexpected failure surfaced to user
             typer.secho(f"Chat failed: {exc}", fg=typer.colors.RED)
             continue
 
