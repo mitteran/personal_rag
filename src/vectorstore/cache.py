@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from functools import lru_cache
+from collections import OrderedDict
 from typing import List
 
 from langchain_core.embeddings import Embeddings
@@ -32,18 +32,27 @@ class CachedEmbeddings(Embeddings):
         self.cache_size = cache_size
         self._cache_hits = 0
         self._cache_misses = 0
+        self._cache: "OrderedDict[str, tuple[float, ...]]" = OrderedDict()
 
     @staticmethod
     def _hash_text(text: str) -> str:
         """Create hash of text for cache key."""
         return hashlib.sha256(text.encode()).hexdigest()
 
-    @lru_cache(maxsize=1000)
-    def _cached_embed_query(self, text_hash: str, text: str) -> List[float]:
-        """Cache single embedding lookup."""
-        self._cache_misses += 1
-        logger.debug(f"Cache miss for query (total misses: {self._cache_misses})")
-        return self.embeddings.embed_query(text)
+    def _get_cached(self, key: str) -> tuple[float, ...] | None:
+        value = self._cache.get(key)
+        if value is not None:
+            self._cache.move_to_end(key)
+        return value
+
+    def _set_cached(self, key: str, vector: List[float]) -> None:
+        if self.cache_size == 0:
+            return
+        self._cache[key] = tuple(vector)
+        self._cache.move_to_end(key)
+        if len(self._cache) > self.cache_size:
+            evicted_key, _ = self._cache.popitem(last=False)
+            logger.debug("Evicted key from embedding cache: %s", evicted_key)
 
     def embed_query(self, text: str) -> List[float]:
         """Embed query text with caching.
@@ -58,24 +67,25 @@ class CachedEmbeddings(Embeddings):
         List[float]
             Embedding vector
         """
-        text_hash = self._hash_text(text)
+        if self.cache_size == 0:
+            return self.embeddings.embed_query(text)
 
-        # Check if in cache
-        try:
-            result = self._cached_embed_query.__wrapped__.__self__._cached_embed_query(
-                self, text_hash, text
+        key = self._hash_text(text)
+        cached = self._get_cached(key)
+        if cached is not None:
+            self._cache_hits += 1
+            logger.debug(
+                "Cache hit for query (hit rate: %.1f%%)", self.cache_hit_rate * 100
             )
-            if result is not None:
-                self._cache_hits += 1
-                logger.debug(
-                    f"Cache hit for query (hit rate: {self.cache_hit_rate:.1%})"
-                )
-            return result
-        except AttributeError:
-            # Cache not initialized yet
-            pass
+            return list(cached)
 
-        return self._cached_embed_query(text_hash, text)
+        self._cache_misses += 1
+        logger.debug(
+            "Cache miss for query (total misses: %s)", self._cache_misses
+        )
+        vector = self.embeddings.embed_query(text)
+        self._set_cached(key, vector)
+        return list(vector)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed documents with caching.
@@ -90,50 +100,50 @@ class CachedEmbeddings(Embeddings):
         List[List[float]]
             Embedding vectors
         """
-        # For bulk operations, check cache individually
-        embeddings = []
-        uncached_texts = []
-        uncached_indices = []
+        if self.cache_size == 0:
+            return self.embeddings.embed_documents(texts)
 
-        for i, text in enumerate(texts):
-            text_hash = self._hash_text(text)
-            # Try to get from cache
-            try:
-                cached = self._cached_embed_query.__wrapped__.__self__._cached_embed_query(
-                    self, text_hash, text
-                )
-                if cached is not None:
-                    embeddings.append(cached)
-                    self._cache_hits += 1
-                    continue
-            except (AttributeError, TypeError):
-                pass
+        results: List[List[float] | None] = [None] * len(texts)
+        uncached: List[str] = []
+        uncached_indices: List[int] = []
 
-            # Not in cache
-            uncached_texts.append(text)
-            uncached_indices.append(i)
-            embeddings.append(None)  # Placeholder
+        for idx, text in enumerate(texts):
+            key = self._hash_text(text)
+            cached = self._get_cached(key)
+            if cached is not None:
+                self._cache_hits += 1
+                results[idx] = list(cached)
+            else:
+                uncached.append(text)
+                uncached_indices.append(idx)
 
-        # Batch embed uncached texts
-        if uncached_texts:
+        if uncached:
             logger.debug(
-                f"Embedding {len(uncached_texts)}/{len(texts)} uncached documents"
+                "Embedding %s/%s uncached documents", len(uncached), len(texts)
             )
-            uncached_embeddings = self.embeddings.embed_documents(uncached_texts)
-            self._cache_misses += len(uncached_texts)
+            embeddings = self.embeddings.embed_documents(uncached)
+            for text, embedding in zip(uncached, embeddings):
+                key = self._hash_text(text)
+                self._cache_misses += 1
+                self._set_cached(key, embedding)
 
-            # Fill in uncached embeddings
-            for idx, embedding in zip(uncached_indices, uncached_embeddings):
-                embeddings[idx] = embedding
-
-                # Cache the result
-                text_hash = self._hash_text(texts[idx])
-                self._cached_embed_query(text_hash, texts[idx])
+            for idx, text in zip(uncached_indices, uncached):
+                key = self._hash_text(text)
+                cached = self._get_cached(key)
+                if cached is not None:
+                    results[idx] = list(cached)
 
         logger.info(
-            f"Embedding batch complete (cache hit rate: {self.cache_hit_rate:.1%})"
+            "Embedding batch complete (cache hit rate: %.1f%%)",
+            self.cache_hit_rate * 100,
         )
-        return embeddings
+
+        final_results: List[List[float]] = []
+        for vec in results:
+            if vec is None:
+                raise RuntimeError("Embedding cache returned an incomplete result.")
+            final_results.append(vec)
+        return final_results
 
     @property
     def cache_hit_rate(self) -> float:
@@ -154,7 +164,7 @@ class CachedEmbeddings(Embeddings):
 
     def clear_cache(self) -> None:
         """Clear the embedding cache."""
-        self._cached_embed_query.cache_clear()
+        self._cache.clear()
         self._cache_hits = 0
         self._cache_misses = 0
         logger.info("Cleared embedding cache")

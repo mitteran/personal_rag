@@ -6,9 +6,10 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 
 - Ingest Markdown, text, PDF, and EPUB documents into a pgvector-backed index.
 - Chunk documents with LangChain splitters tuned for long-form references.
-- Query via CLI using OpenAI chat models with source attribution.
-- Hold multi-turn conversations with in-memory context retention.
-- Chat through a lightweight FastAPI web interface styled for desktop browsers.
+- Automatic embedding cache trims duplicate OpenAI calls during ingest and query.
+- Query via CLI or API with explicit source citations on every answer.
+- Multi-turn chat backed by PostgreSQL memory, with an in-memory fallback for local runs.
+- Lightweight FastAPI web interface for interactive chat on desktop browsers.
 
 ## Getting Started
 
@@ -36,8 +37,18 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
   ```
 - Launch the web chatbot (listens on `http://127.0.0.1:8000` by default):
   ```bash
-  uvicorn src.web.app:app --reload
+ uvicorn src.web.app:app --reload
   ```
+
+## Testing
+
+Run the full suite (unit and integration tests) after installing dependencies:
+
+```bash
+pytest -q
+```
+
+Tests that touch the vector store or chat memory will automatically fall back to in-memory storage when a PostgreSQL instance is not available.
 
 ## Setting up pgvector
 
@@ -62,3 +73,5 @@ docker run \
 - `src/pipeline/` CLI and LangChain orchestration.
 - `config/settings.yaml` runtime configuration.
 - `tests/` pytest suite covering utilities.
+
+Environment variables such as `DB_HOST`, `DB_PORT`, and `OPENAI_API_KEY` override values in `config/settings.yaml`, making it easy to point the stack at different infrastructure per environment.

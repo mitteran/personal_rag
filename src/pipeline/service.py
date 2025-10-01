@@ -8,10 +8,8 @@ from uuid import uuid4
 from langchain.chains import RetrievalQA
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
-from langchain.chains.retrieval import create_retrieval_chain
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -82,9 +80,9 @@ class ChatResult:
     history: List[ChatMessage]
 
 
-def _build_conversational_chain(
+def _build_conversational_components(
     settings: Settings, *, top_k: int | None = None
-) -> RunnableWithMessageHistory:
+):
     llm = ChatOpenAI(model=settings.rag.chat_model, temperature=0.1)
     store = get_store(settings)
     retriever = store.as_retriever(search_kwargs={"k": top_k or settings.rag.top_k})
@@ -119,15 +117,7 @@ def _build_conversational_chain(
         llm, retriever, contextualize_prompt
     )
     doc_chain = create_stuff_documents_chain(llm, answer_prompt)
-    retrieval_chain = create_retrieval_chain(history_aware_retriever, doc_chain)
-
-    return RunnableWithMessageHistory(
-        retrieval_chain,
-        _memory_store.get_session,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-        output_messages_key="answer",
-    )
+    return doc_chain, history_aware_retriever
 
 
 def start_chat_session(session_id: str | None = None) -> str:
@@ -150,19 +140,41 @@ def chat(
 
     logger.info(f"Chat message received for session {session_id}: {message[:100]}...")
     settings = get_settings(config_path)
-    chain = _build_conversational_chain(settings, top_k=top_k)
-    result = chain.invoke(
-        {"input": message},
-        config={"configurable": {"session_id": session_id}},
+    doc_chain, history_aware_retriever = _build_conversational_components(
+        settings, top_k=top_k
     )
-    sources = result.get("context", [])
-    history = serialize_history(_memory_store.get_session(session_id))
-    logger.info(f"Chat response generated with {len(sources)} sources, history length: {len(history)}")
+    session_history = _memory_store.get_session(session_id)
+    history_messages = session_history.messages
+
+    retrieved = history_aware_retriever.invoke(
+        {"input": message, "chat_history": history_messages}
+    )
+    if retrieved is None:
+        documents: List[Document] = []
+    else:
+        documents = list(retrieved)
+
+    answer, _ = doc_chain.combine_docs(
+        documents,
+        input=message,
+        chat_history=history_messages,
+    )
+
+    session_history.add_user_message(message)
+    session_history.add_ai_message(answer)
+
+    serialized_history = serialize_history(session_history)
+    sources: List[Document] = documents
+    logger.info(
+        "Chat response generated with %s sources, history length: %s",
+        len(sources),
+        len(serialized_history),
+    )
     return ChatResult(
         session_id=session_id,
-        answer=result["answer"],
+        answer=answer,
         sources=sources,
-        history=history,
+        history=serialized_history,
     )
 
 

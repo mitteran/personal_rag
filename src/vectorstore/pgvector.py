@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 from langchain_postgres import PGVector
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.embeddings import Embeddings
+from langchain_openai import OpenAIEmbeddings
 
 from src.logging_config import get_logger
 from src.settings import Settings
+from src.vectorstore.cache import CachedEmbeddings
 
 logger = get_logger(__name__)
 
@@ -29,7 +30,10 @@ def _ensure_openai_key() -> str:
 def build_embeddings(settings: Settings) -> Embeddings:
     key = _ensure_openai_key()
     logger.info(f"Initializing embeddings with model: {settings.rag.embedding_model}")
-    return OpenAIEmbeddings(model=settings.rag.embedding_model, openai_api_key=key)
+    base_embeddings = OpenAIEmbeddings(
+        model=settings.rag.embedding_model, openai_api_key=key
+    )
+    return CachedEmbeddings(base_embeddings)
 
 
 def upsert_documents(documents, settings: Settings, *, reindex: bool = False) -> PGVector:

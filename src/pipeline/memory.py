@@ -5,7 +5,9 @@ from threading import Lock
 from typing import Dict, List
 
 import psycopg
+from psycopg import Error as PsycopgError
 from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_postgres import PostgresChatMessageHistory
 
@@ -32,15 +34,24 @@ class ChatMemoryStore:
         self._store: Dict[str, BaseChatMessageHistory] = {}
         self._lock = Lock()
         self._table_name = "chat_message_history"
-        self._connection = self._create_connection()
-        self._ensure_table()
-        logger.info("ChatMemoryStore initialized with persistent PostgreSQL storage")
+        self._connection = self._initialise_connection()
+        if self._connection is not None:
+            self._ensure_table()
+            logger.info("ChatMemoryStore initialized with persistent PostgreSQL storage")
+        else:
+            logger.warning(
+                "ChatMemoryStore falling back to in-memory storage (database unavailable)"
+            )
 
-    def _create_connection(self) -> psycopg.Connection:
+    def _initialise_connection(self) -> psycopg.Connection | None:
         """Create a persistent database connection for chat history."""
         conn_str = self._settings.database.psycopg_connection_string
-        logger.debug(f"Creating database connection for chat history")
-        return psycopg.connect(conn_str, autocommit=True)
+        logger.debug("Creating database connection for chat history")
+        try:
+            return psycopg.connect(conn_str, autocommit=True)
+        except PsycopgError as exc:
+            logger.error("Failed to connect to chat history database: %s", exc)
+            return None
 
     def _ensure_table(self) -> None:
         """Create the chat message history table if it doesn't exist."""
@@ -62,12 +73,16 @@ class ChatMemoryStore:
         with self._lock:
             history = self._store.get(session_id)
             if history is None:
-                logger.debug(f"Creating new persistent session: {session_id}")
-                history = PostgresChatMessageHistory(
-                    self._table_name,
-                    session_id,
-                    sync_connection=self._connection,
-                )
+                if self._connection is not None:
+                    logger.debug(f"Creating new persistent session: {session_id}")
+                    history = PostgresChatMessageHistory(
+                        self._table_name,
+                        session_id,
+                        sync_connection=self._connection,
+                    )
+                else:
+                    logger.debug(f"Creating new in-memory session: {session_id}")
+                    history = InMemoryChatMessageHistory()
                 self._store[session_id] = history
             return history
 
@@ -75,7 +90,11 @@ class ChatMemoryStore:
         with self._lock:
             logger.info(f"Dropping session: {session_id}")
             history = self._store.pop(session_id, None)
-            if history and isinstance(history, PostgresChatMessageHistory):
+            if (
+                history
+                and self._connection is not None
+                and isinstance(history, PostgresChatMessageHistory)
+            ):
                 # Clear the messages from the database
                 history.clear()
 

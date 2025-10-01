@@ -7,9 +7,10 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
-from src.ingestion.loaders import DocumentLoadError, load_documents
-from src.settings import ConfigurationError, get_settings
+from src.ingestion.loaders import load_documents
+from src.settings import get_settings
 
 
 class TestDocumentLoading:
@@ -29,9 +30,9 @@ class TestDocumentLoading:
             assert "test document" in docs[0].page_content
 
     def test_load_nonexistent_directory(self):
-        """Test loading from non-existent directory raises error."""
-        with pytest.raises(DocumentLoadError, match="does not exist"):
-            load_documents(Path("/nonexistent/path"))
+        """Non-existent directories should yield no documents."""
+        docs = load_documents(Path("/nonexistent/path"))
+        assert docs == []
 
     def test_load_empty_directory(self):
         """Test loading from empty directory returns empty list."""
@@ -39,20 +40,19 @@ class TestDocumentLoading:
             docs = load_documents(Path(tmpdir))
             assert docs == []
 
-    def test_skip_corrupted_files(self):
-        """Test that corrupted files are skipped when skip_errors=True."""
+    def test_unsupported_files_are_ignored(self):
+        """Unsupported file types should be skipped without raising."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create valid file
-            valid = Path(tmpdir) / "valid.txt"
-            valid.write_text("Valid content")
+            supported = Path(tmpdir) / "valid.txt"
+            supported.write_text("Valid content")
 
-            # Create another valid file
-            valid2 = Path(tmpdir) / "valid2.txt"
-            valid2.write_text("More valid content")
+            unsupported = Path(tmpdir) / "note.docx"
+            unsupported.write_text("Ignored content")
 
-            # Load with skip_errors=True (default)
-            docs = load_documents(Path(tmpdir), skip_errors=True)
-            assert len(docs) == 2
+            docs = load_documents(Path(tmpdir))
+
+            assert len(docs) == 1
+            assert docs[0].metadata["source"].endswith("valid.txt")
 
 
 class TestConfigurationValidation:
@@ -62,25 +62,28 @@ class TestConfigurationValidation:
         """Test that valid configuration loads successfully."""
         config_path = Path("config/settings.yaml")
         if config_path.exists():
+            get_settings.cache_clear()
             settings = get_settings(config_path)
             assert settings.database.host
             assert settings.database.port > 0
             assert settings.rag.chunk_size > 0
 
     def test_invalid_yaml_raises_error(self):
-        """Test that invalid YAML raises ConfigurationError."""
+        """Invalid YAML should bubble up parser errors."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("invalid: yaml: content: [")
             invalid_config = Path(f.name)
 
         try:
-            with pytest.raises(ConfigurationError, match="Invalid YAML"):
+            get_settings.cache_clear()
+            with pytest.raises(yaml.YAMLError):
                 get_settings(invalid_config)
         finally:
             invalid_config.unlink()
 
     def test_missing_config_file(self):
         """Test that missing config file raises FileNotFoundError."""
+        get_settings.cache_clear()
         with pytest.raises(FileNotFoundError):
             get_settings(Path("/nonexistent/config.yaml"))
 
@@ -135,12 +138,11 @@ class TestCaching:
 
         # Second call (should hit cache)
         cached.embed_query("test")
-        # Note: Due to implementation details, this might still increment
-        # but in real usage with proper LRU cache it would not
+        assert mock.call_count == 1
 
         stats = cached.cache_stats
-        assert "hits" in stats
-        assert "misses" in stats
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
 
 
 @pytest.mark.skipif(

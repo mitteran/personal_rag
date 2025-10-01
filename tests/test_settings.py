@@ -3,8 +3,17 @@ from pathlib import Path
 from src.settings import get_settings
 
 
-def test_settings_loader(tmp_path: Path):
+def test_settings_loader(tmp_path: Path, monkeypatch):
     get_settings.cache_clear()
+    for key in [
+        "DB_HOST",
+        "DB_PORT",
+        "DB_USER",
+        "DB_PASSWORD",
+        "DB_NAME",
+        "DB_COLLECTION",
+    ]:
+        monkeypatch.delenv(key, raising=False)
     config = tmp_path / "settings.yaml"
     config.write_text(
         """
