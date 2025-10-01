@@ -18,7 +18,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
    pip install -r requirements.txt
    ```
 2. Provision PostgreSQL 15+ with the `pgvector` extension. Update `config/settings.yaml` with your connection details.
-3. Export your OpenAI key: `echo "OPENAI_API_KEY=sk-..." >> .env` and `source .env` (or load via `python-dotenv`).
+3. Export your OpenAI key: `echo "OPENAI_API_KEY=sk-..." >> .env` and `source .env`.
 
 ## Usage
 
@@ -38,6 +38,22 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
   ```bash
   uvicorn src.web.app:app --reload
   ```
+
+## Setting up pgvector
+
+1. Ensure docker is installed and running (https://docs.docker.com/get-docker/)
+2. Run the following command to start the postgres container:
+
+```bash
+   
+docker run \
+    --name pgvector-container \
+    -e POSTGRES_USER=persrag \
+    -e POSTGRES_PASSWORD=loremipsum \
+    -e POSTGRES_DB=rag \
+    -p 6024:5432 \
+    -d pgvector/pgvector:pg16
+```
 
 ## Project Layout
 
