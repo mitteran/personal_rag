@@ -1,8 +1,9 @@
-# My personal RAG
+# Personal RAG for PDF and EPUB files
 
 Local retrieval-augmented generation stack built with Python, LangChain, pgvector, and OpenAI models.
 
 ## Features
+
 - Ingest Markdown, text, PDF, and EPUB documents into a pgvector-backed index.
 - Chunk documents with LangChain splitters tuned for long-form references.
 - Query via CLI using OpenAI chat models with source attribution.
@@ -10,6 +11,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 - Chat through a lightweight FastAPI web interface styled for desktop browsers.
 
 ## Getting Started
+
 1. Create a virtual environment and install dependencies:
    ```bash
    python -m venv .venv && source .venv/bin/activate
@@ -19,6 +21,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 3. Export your OpenAI key: `echo "OPENAI_API_KEY=sk-..." >> .env` and `source .env` (or load via `python-dotenv`).
 
 ## Usage
+
 - Ingest documents from `data/raw/`:
   ```bash
   python -m src.pipeline.cli ingest data/raw --reindex
@@ -37,6 +40,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
   ```
 
 ## Project Layout
+
 - `src/ingestion/` document discovery and loaders.
 - `src/vectorstore/` pgvector helpers and embeddings wiring.
 - `src/pipeline/` CLI and LangChain orchestration.
