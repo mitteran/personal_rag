@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from src.logging_config import setup_logging
 from src.pipeline.service import (
     MissingOpenAIKeyError,
     chat as chat_with_memory,
@@ -27,6 +28,9 @@ def ingest(
         "--config",
         help="Path to the YAML configuration file.",
     ),
+    log_level: str = typer.Option(
+        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+    ),
 ):
     """Load documents, chunk them, and persist embeddings in the vector store.
 
@@ -38,7 +42,10 @@ def ingest(
         When ``True``, drop any existing collection before rebuilding it.
     config:
         Path to the settings file with database and embedding configuration.
+    log_level:
+        Logging verbosity level.
     """
+    setup_logging(log_level)
     try:
         chunk_count = ingest_corpus(content_dir, reindex=reindex, config_path=config)
     except MissingOpenAIKeyError as exc:
@@ -62,6 +69,9 @@ def ask(
         "--config",
         help="Path to the YAML configuration file.",
     ),
+    log_level: str = typer.Option(
+        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+    ),
 ):
     """Run a single-shot query against the indexed corpus and print the answer.
 
@@ -73,7 +83,10 @@ def ask(
         Optional override for how many context chunks to retrieve.
     config:
         Path to the YAML settings file to override the default configuration.
+    log_level:
+        Logging verbosity level.
     """
+    setup_logging(log_level)
     try:
         answer, sources = query(question, top_k=top_k, config_path=config)
     except MissingOpenAIKeyError as exc:
@@ -101,6 +114,9 @@ def chat(
     top_k: int = typer.Option(
         None, "--top-k", help="Override number of retrieved chunks."
     ),
+    log_level: str = typer.Option(
+        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+    ),
 ):
     """Start an interactive chat session backed by the local retrieval pipeline.
 
@@ -110,7 +126,10 @@ def chat(
         Path to the YAML configuration file to load pipeline settings.
     top_k:
         Optional override for how many retrieval chunks to supply per turn.
+    log_level:
+        Logging verbosity level.
     """
+    setup_logging(log_level)
     try:
         session_id = start_chat_session()
     except Exception as exc:  # pragma: no cover - defensive guard

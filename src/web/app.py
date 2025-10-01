@@ -8,15 +8,25 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from src.logging_config import get_logger, setup_logging
 from src.pipeline.service import (
     MissingOpenAIKeyError,
     chat as chat_with_memory,
     start_chat_session,
 )
 
+logger = get_logger(__name__)
+
 DEFAULT_CONFIG = Path("config/settings.yaml")
 
 app = FastAPI(title="RAG Chatbot", version="0.1.0")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize logging on application startup."""
+    setup_logging("INFO")
+    logger.info("RAG Chatbot API starting up")
 
 
 class ChatRequest(BaseModel):
@@ -159,6 +169,8 @@ def index() -> HTMLResponse:
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     session_id = payload.session_id or start_chat_session()
+    logger.info(f"API chat request for session {session_id}")
+
     try:
         result = chat_with_memory(
             session_id=session_id,
@@ -167,10 +179,15 @@ def chat(payload: ChatRequest) -> ChatResponse:
             config_path=DEFAULT_CONFIG,
         )
     except MissingOpenAIKeyError as exc:  # pragma: no cover - configuration issue surfaced to client
+        logger.error(f"Missing OpenAI API key for session {session_id}")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(f"Chat error for session {session_id}: {exc}")
+        raise
 
     sources = [doc.metadata.get("source", "unknown") for doc in result.sources]
     history = [asdict(message) for message in result.history]
+    logger.info(f"API chat response for session {session_id}: {len(sources)} sources")
     return ChatResponse(
         session_id=session_id,
         answer=result.answer,
@@ -181,6 +198,7 @@ def chat(payload: ChatRequest) -> ChatResponse:
 
 @app.get("/healthz")
 def healthcheck() -> dict[str, str]:
+    logger.debug("Health check requested")
     return {"status": "ok"}
 
 

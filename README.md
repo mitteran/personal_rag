@@ -28,7 +28,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
   ```
 - Ask a question against the index:
   ```bash
-  python -m src.pipeline.cli ask "What does the design document say about evaluations?"
+  python -m src.pipeline.cli ask "What is the main gist of the documents?"
   ```
 - Start an interactive chat session with conversational memory:
   ```bash
