@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict
+
+import yaml
+
+
+@dataclass
+class DatabaseSettings:
+    host: str
+    port: int
+    user: str
+    password: str
+    dbname: str
+    collection: str
+
+    @property
+    def connection_string(self) -> str:
+        return (
+            f"postgresql+psycopg://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.dbname}"
+        )
+
+
+@dataclass
+class RagSettings:
+    chunk_size: int
+    chunk_overlap: int
+    embedding_model: str
+    chat_model: str
+    top_k: int
+
+
+@dataclass
+class Settings:
+    database: DatabaseSettings
+    rag: RagSettings
+
+
+def _as_database_settings(raw: Dict[str, Any]) -> DatabaseSettings:
+    return DatabaseSettings(
+        host=str(raw.get("host", "localhost")),
+        port=int(raw.get("port", 5432)),
+        user=str(raw.get("user", "postgres")),
+        password=str(raw.get("password", "")),
+        dbname=str(raw.get("dbname", "postgres")),
+        collection=str(raw.get("collection", "rag_documents")),
+    )
+
+
+def _as_rag_settings(raw: Dict[str, Any]) -> RagSettings:
+    return RagSettings(
+        chunk_size=int(raw.get("chunk_size", 1000)),
+        chunk_overlap=int(raw.get("chunk_overlap", 200)),
+        embedding_model=str(raw.get("embedding_model", "text-embedding-3-small")),
+        chat_model=str(raw.get("chat_model", "gpt-4o-mini")),
+        top_k=int(raw.get("top_k", 4)),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings(config_path: Path | None = None) -> Settings:
+    path = config_path or Path("config/settings.yaml")
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found at {path.resolve()}."
+        )
+
+    raw = yaml.safe_load(path.read_text())
+    if not isinstance(raw, dict):
+        raise ValueError("Configuration file is invalid; expected a top-level mapping.")
+
+    database = _as_database_settings(dict(raw.get("database", {})))
+    rag = _as_rag_settings(dict(raw.get("rag", {})))
+    return Settings(database=database, rag=rag)

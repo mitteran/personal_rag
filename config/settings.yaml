@@ -1,0 +1,14 @@
+database:
+  host: localhost
+  port: 6024
+  user: langchain
+  password: langchain
+  dbname: langchain
+  collection: rag_documents
+
+rag:
+  chunk_size: 1000
+  chunk_overlap: 200
+  embedding_model: text-embedding-3-small
+  chat_model: gpt-4o-mini
+  top_k: 4

@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+.env
+.pytest_cache/
+data/processed/*
+!data/processed/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/tmp/
+notebooks/.ipynb_checkpoints/
+!notebooks/.gitkeep
