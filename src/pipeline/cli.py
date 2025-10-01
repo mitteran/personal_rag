@@ -114,6 +114,9 @@ def chat(
     top_k: int = typer.Option(
         None, "--top-k", help="Override number of retrieved chunks."
     ),
+    session_id: str = typer.Option(
+        None, "--session-id", help="Resume an existing chat session by ID."
+    ),
     log_level: str = typer.Option(
         "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
     ),
@@ -126,12 +129,18 @@ def chat(
         Path to the YAML configuration file to load pipeline settings.
     top_k:
         Optional override for how many retrieval chunks to supply per turn.
+    session_id:
+        Optional session ID to resume a previous conversation.
     log_level:
         Logging verbosity level.
     """
     setup_logging(log_level)
     try:
-        session_id = start_chat_session()
+        if session_id is None:
+            session_id = start_chat_session()
+            typer.secho(f"Created new session: {session_id}", fg=typer.colors.GREEN)
+        else:
+            typer.secho(f"Resuming session: {session_id}", fg=typer.colors.GREEN)
     except Exception as exc:  # pragma: no cover - defensive guard
         typer.secho(f"Failed to initialise chat session: {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -140,7 +149,6 @@ def chat(
         "Starting interactive chat. Type 'exit' or press Ctrl+C to quit.",
         fg=typer.colors.BLUE,
     )
-    typer.secho(f"Session ID: {session_id}", fg=typer.colors.GREEN)
 
     while True:
         try:

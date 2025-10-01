@@ -24,8 +24,17 @@ class DatabaseSettings:
 
     @property
     def connection_string(self) -> str:
+        """SQLAlchemy-style connection string for PGVector."""
         return (
             f"postgresql+psycopg://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.dbname}"
+        )
+
+    @property
+    def psycopg_connection_string(self) -> str:
+        """Psycopg-style connection string for direct connections."""
+        return (
+            f"postgresql://{self.user}:{self.password}"
             f"@{self.host}:{self.port}/{self.dbname}"
         )
 
