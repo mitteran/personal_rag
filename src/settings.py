@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
 
 import yaml
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 @dataclass
@@ -42,12 +47,12 @@ class Settings:
 
 def _as_database_settings(raw: Dict[str, Any]) -> DatabaseSettings:
     return DatabaseSettings(
-        host=str(raw.get("host", "localhost")),
-        port=int(raw.get("port", 5432)),
-        user=str(raw.get("user", "postgres")),
-        password=str(raw.get("password", "")),
-        dbname=str(raw.get("dbname", "postgres")),
-        collection=str(raw.get("collection", "rag_documents")),
+        host=os.getenv("DB_HOST", str(raw.get("host", "localhost"))),
+        port=int(os.getenv("DB_PORT", raw.get("port", 5432))),
+        user=os.getenv("DB_USER", str(raw.get("user", "postgres"))),
+        password=os.getenv("DB_PASSWORD", str(raw.get("password", ""))),
+        dbname=os.getenv("DB_NAME", str(raw.get("dbname", "postgres"))),
+        collection=os.getenv("DB_COLLECTION", str(raw.get("collection", "rag_documents"))),
     )
 
 

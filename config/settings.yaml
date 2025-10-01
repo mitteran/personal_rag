@@ -2,7 +2,7 @@ database:
   host: localhost
   port: 6024
   user: persrag
-  password: loremipsum
+  password: ""  # Set via DB_PASSWORD environment variable
   dbname: rag
   collection: rag_documents
 
