@@ -6,6 +6,8 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 - Ingest Markdown, text, PDF, and EPUB documents into a pgvector-backed index.
 - Chunk documents with LangChain splitters tuned for long-form references.
 - Query via CLI using OpenAI chat models with source attribution.
+- Hold multi-turn conversations with in-memory context retention.
+- Chat through a lightweight FastAPI web interface styled for desktop browsers.
 
 ## Getting Started
 1. Create a virtual environment and install dependencies:
@@ -24,6 +26,14 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 - Ask a question against the index:
   ```bash
   python -m src.pipeline.cli ask "What does the design document say about evaluations?"
+  ```
+- Start an interactive chat session with conversational memory:
+  ```bash
+  python -m src.pipeline.cli chat
+  ```
+- Launch the web chatbot (listens on `http://127.0.0.1:8000` by default):
+  ```bash
+  uvicorn src.web.app:app --reload
   ```
 
 ## Project Layout

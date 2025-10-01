@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Tuple
+from uuid import uuid4
 
 from langchain.chains import RetrievalQA
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains.history_aware_retriever import create_history_aware_retriever
+from langchain.chains.retrieval import create_retrieval_chain
 from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.ingestion.loaders import load_documents
+from src.pipeline.memory import ChatMemoryStore, ChatMessage, serialize_history
 from src.settings import Settings, get_settings
 from src.vectorstore.pgvector import MissingOpenAIKeyError, get_store, upsert_documents
 
@@ -48,4 +56,112 @@ def query(question: str, *, top_k: int | None = None, config_path: Path | None =
     return answer, sources
 
 
-__all__ = ["MissingOpenAIKeyError", "ingest_corpus", "query"]
+_memory_store = ChatMemoryStore()
+
+
+@dataclass
+class ChatResult:
+    session_id: str
+    answer: str
+    sources: List[Document]
+    history: List[ChatMessage]
+
+
+def _build_conversational_chain(
+    settings: Settings, *, top_k: int | None = None
+) -> RunnableWithMessageHistory:
+    llm = ChatOpenAI(model=settings.rag.chat_model, temperature=0.1)
+    store = get_store(settings)
+    retriever = store.as_retriever(search_kwargs={"k": top_k or settings.rag.top_k})
+
+    contextualize_prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Given the following conversation and a follow up question, rewrite the"
+                " follow up question to be a standalone query. If it already stands"
+                " alone, return it unchanged.",
+            ),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+
+    answer_prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful assistant. Use the supplied context to answer the"
+                " question. If the answer is not contained in the context, say you"
+                " do not know.",
+            ),
+            MessagesPlaceholder("chat_history"),
+            ("human", "Context:\n{context}\n\nQuestion: {input}"),
+        ]
+    )
+
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_prompt
+    )
+    doc_chain = create_stuff_documents_chain(llm, answer_prompt)
+    retrieval_chain = create_retrieval_chain(history_aware_retriever, doc_chain)
+
+    return RunnableWithMessageHistory(
+        retrieval_chain,
+        _memory_store.get_session,
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+
+
+def start_chat_session(session_id: str | None = None) -> str:
+    identifier = session_id or uuid4().hex
+    _memory_store.get_session(identifier)
+    return identifier
+
+
+def chat(
+    session_id: str,
+    message: str,
+    *,
+    top_k: int | None = None,
+    config_path: Path | None = None,
+) -> ChatResult:
+    if not session_id:
+        raise ValueError("session_id must be provided for chat interactions.")
+
+    settings = get_settings(config_path)
+    chain = _build_conversational_chain(settings, top_k=top_k)
+    result = chain.invoke(
+        {"input": message},
+        config={"configurable": {"session_id": session_id}},
+    )
+    sources = result.get("context", [])
+    history = serialize_history(_memory_store.get_session(session_id))
+    return ChatResult(
+        session_id=session_id,
+        answer=result["answer"],
+        sources=sources,
+        history=history,
+    )
+
+
+def reset_chat_session(session_id: str) -> None:
+    _memory_store.drop_session(session_id)
+
+
+def get_chat_history(session_id: str) -> List[ChatMessage]:
+    return serialize_history(_memory_store.get_session(session_id))
+
+
+__all__ = [
+    "MissingOpenAIKeyError",
+    "ChatResult",
+    "chat",
+    "get_chat_history",
+    "ingest_corpus",
+    "query",
+    "reset_chat_session",
+    "start_chat_session",
+]
