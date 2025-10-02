@@ -28,7 +28,7 @@ class ColoredFormatter(logging.Formatter):
 
 
 def setup_logging(
-    level: str = "INFO",
+    level: str = "WARNING",
     *,
     json_format: bool = False,
     log_file: str | None = None,

@@ -25,7 +25,7 @@ app = FastAPI(title="RAG Chatbot", version="0.1.0")
 @app.on_event("startup")
 async def startup_event():
     """Initialize logging on application startup."""
-    setup_logging("INFO")
+    setup_logging("WARNING")
     logger.info("RAG Chatbot API starting up")
 
 

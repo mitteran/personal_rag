@@ -29,7 +29,7 @@ def ingest(
         help="Path to the YAML configuration file.",
     ),
     log_level: str = typer.Option(
-        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+        "WARNING", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
     ),
 ):
     """Load documents, chunk them, and persist embeddings in the vector store.
@@ -70,7 +70,7 @@ def ask(
         help="Path to the YAML configuration file.",
     ),
     log_level: str = typer.Option(
-        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+        "WARNING", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
     ),
 ):
     """Run a single-shot query against the indexed corpus and print the answer.
@@ -118,7 +118,7 @@ def chat(
         None, "--session-id", help="Resume an existing chat session by ID."
     ),
     log_level: str = typer.Option(
-        "INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
+        "WARNING", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"
     ),
 ):
     """Start an interactive chat session backed by the local retrieval pipeline.

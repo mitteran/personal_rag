@@ -10,3 +10,5 @@ data/tmp/
 notebooks/.ipynb_checkpoints/
 !notebooks/.gitkeep
 CLAUDE.md
+IMPROVEMENTS.md
+AGENTS.md
