@@ -56,7 +56,6 @@ Tests that touch the vector store or chat memory will automatically fall back to
 2. Run the following command to start the postgres container:
 
 ```bash
-   
 docker run \
     --name pgvector-container \
     -e POSTGRES_USER=persrag \
@@ -65,6 +64,9 @@ docker run \
     -p 6024:5432 \
     -d pgvector/pgvector:pg16
 ```
+
+If the Docker container already exists, start it with `docker start pgvector-container`.
+
 
 ## Project Layout
 
