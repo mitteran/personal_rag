@@ -12,3 +12,6 @@ rag:
   embedding_model: text-embedding-3-small
   chat_model: gpt-4o-mini
   top_k: 4
+  use_enhanced_retrieval: true  # Enable HyDE + hybrid search + reranking
+  reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  hybrid_vector_weight: 0.5  # 0.5 = equal weight for vector and BM25

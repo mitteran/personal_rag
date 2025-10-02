@@ -73,6 +73,9 @@ def ask(
     top_k: int = typer.Option(
         None, "--top-k", help="Override number of retrieved chunks."
     ),
+    enhanced: bool = typer.Option(
+        True, "--enhanced/--standard", help="Use enhanced retrieval (HyDE + hybrid + reranking)."
+    ),
     config: Path = typer.Option(
         Path("config/settings.yaml"),
         "--config",
@@ -92,6 +95,8 @@ def ask(
         Collection name to query. If not specified, uses default from config.
     top_k:
         Optional override for how many context chunks to retrieve.
+    enhanced:
+        Use enhanced retrieval with HyDE, hybrid search, and reranking (default: True).
     config:
         Path to the YAML settings file to override the default configuration.
     log_level:
@@ -99,7 +104,9 @@ def ask(
     """
     setup_logging(log_level)
     try:
-        answer, sources = query(question, top_k=top_k, config_path=config, collection=collection)
+        answer, sources = query(
+            question, top_k=top_k, config_path=config, collection=collection, use_enhanced=enhanced
+        )
     except MissingOpenAIKeyError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -128,6 +135,9 @@ def chat(
     top_k: int = typer.Option(
         None, "--top-k", help="Override number of retrieved chunks."
     ),
+    enhanced: bool = typer.Option(
+        True, "--enhanced/--standard", help="Use enhanced retrieval (hybrid + reranking)."
+    ),
     session_id: str = typer.Option(
         None, "--session-id", help="Resume an existing chat session by ID."
     ),
@@ -145,6 +155,8 @@ def chat(
         Path to the YAML configuration file to load pipeline settings.
     top_k:
         Optional override for how many retrieval chunks to supply per turn.
+    enhanced:
+        Use enhanced retrieval with hybrid search and reranking (default: True).
     session_id:
         Optional session ID to resume a previous conversation.
     log_level:
@@ -184,6 +196,7 @@ def chat(
                 top_k=top_k,
                 config_path=config,
                 collection=collection,
+                use_enhanced=enhanced,
             )
         except MissingOpenAIKeyError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)

@@ -4,6 +4,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 
 ## Features
 
+- **Enhanced Retrieval**: HyDE query transformation, hybrid search (vector + BM25), and cross-encoder reranking for improved accuracy
 - Ingest Markdown, text, PDF, and EPUB documents into a pgvector-backed index.
 - Multiple collections support: organize documents by topic in separate indexes.
 - Chunk documents with LangChain splitters tuned for long-form references.
@@ -54,6 +55,22 @@ The system supports multiple collections to organize documents by topic. Each fo
 
 **Note:** If no collection is specified in queries, the default collection from `config/settings.yaml` is used.
 
+### Enhanced Retrieval
+
+The system uses three advanced retrieval techniques by default:
+
+1. **HyDE (Hypothetical Document Embeddings)**: Generates a hypothetical answer to your query, then searches for documents similar to that answer
+2. **Hybrid Search**: Combines vector similarity (semantic) with BM25 keyword search using reciprocal rank fusion
+3. **Cross-Encoder Reranking**: Retrieves more candidates, then uses a cross-encoder model to rerank them for better relevance
+
+Enhanced retrieval is **enabled by default**. To use standard retrieval:
+```bash
+python -m src.pipeline.cli ask "Your question" --standard
+python -m src.pipeline.cli chat --standard
+```
+
+The BM25 index is automatically built during ingestion and stored in PostgreSQL alongside the vector index.
+
 ## Testing
 
 Run the full suite (unit and integration tests) after installing dependencies:
@@ -86,6 +103,7 @@ If the Docker container already exists, start it with `docker start pgvector-con
 
 - `src/ingestion/` document discovery and loaders.
 - `src/vectorstore/` pgvector helpers and embeddings wiring.
+- `src/retrieval/` enhanced retrieval components (HyDE, hybrid search, reranking).
 - `src/pipeline/` CLI and LangChain orchestration.
 - `config/settings.yaml` runtime configuration.
 - `tests/` pytest suite covering utilities.
