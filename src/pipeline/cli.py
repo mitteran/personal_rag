@@ -23,6 +23,9 @@ def ingest(
     reindex: bool = typer.Option(
         False, "--reindex", "-r", help="Drop and rebuild the vector collection."
     ),
+    collection: str = typer.Option(
+        None, "--collection", "-c", help="Collection name (defaults to folder name)."
+    ),
     config: Path = typer.Option(
         Path("config/settings.yaml"),
         "--config",
@@ -40,6 +43,8 @@ def ingest(
         Directory containing the raw corpus files to ingest.
     reindex:
         When ``True``, drop any existing collection before rebuilding it.
+    collection:
+        Collection name to use. If not specified, uses the folder name.
     config:
         Path to the settings file with database and embedding configuration.
     log_level:
@@ -47,7 +52,7 @@ def ingest(
     """
     setup_logging(log_level)
     try:
-        chunk_count = ingest_corpus(content_dir, reindex=reindex, config_path=config)
+        chunk_count = ingest_corpus(content_dir, reindex=reindex, config_path=config, collection=collection)
     except MissingOpenAIKeyError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -55,12 +60,16 @@ def ingest(
         typer.secho(f"Ingestion failed: {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    typer.secho(f"Ingested {chunk_count} chunks into pgvector.", fg=typer.colors.GREEN)
+    collection_name = collection or content_dir.name
+    typer.secho(f"Ingested {chunk_count} chunks into collection '{collection_name}'.", fg=typer.colors.GREEN)
 
 
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Natural language query."),
+    collection: str = typer.Option(
+        None, "--collection", "-c", help="Collection name to query."
+    ),
     top_k: int = typer.Option(
         None, "--top-k", help="Override number of retrieved chunks."
     ),
@@ -79,6 +88,8 @@ def ask(
     ----------
     question:
         Natural-language prompt passed to the retriever and LLM.
+    collection:
+        Collection name to query. If not specified, uses default from config.
     top_k:
         Optional override for how many context chunks to retrieve.
     config:
@@ -88,7 +99,7 @@ def ask(
     """
     setup_logging(log_level)
     try:
-        answer, sources = query(question, top_k=top_k, config_path=config)
+        answer, sources = query(question, top_k=top_k, config_path=config, collection=collection)
     except MissingOpenAIKeyError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -106,6 +117,9 @@ def ask(
 
 @app.command()
 def chat(
+    collection: str = typer.Option(
+        None, "--collection", "-c", help="Collection name to query."
+    ),
     config: Path = typer.Option(
         Path("config/settings.yaml"),
         "--config",
@@ -125,6 +139,8 @@ def chat(
 
     Parameters
     ----------
+    collection:
+        Collection name to query. If not specified, uses default from config.
     config:
         Path to the YAML configuration file to load pipeline settings.
     top_k:
@@ -167,6 +183,7 @@ def chat(
                 message=message,
                 top_k=top_k,
                 config_path=config,
+                collection=collection,
             )
         except MissingOpenAIKeyError as exc:
             typer.secho(str(exc), fg=typer.colors.RED)

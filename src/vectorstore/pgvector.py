@@ -36,21 +36,21 @@ def build_embeddings(settings: Settings) -> Embeddings:
     return CachedEmbeddings(base_embeddings)
 
 
-def upsert_documents(documents, settings: Settings, *, reindex: bool = False) -> PGVector:
+def upsert_documents(documents, settings: Settings, *, reindex: bool = False, collection: str | None = None) -> PGVector:
     embeddings = build_embeddings(settings)
-    collection = settings.database.collection
+    collection_name = collection or settings.database.collection
 
     if reindex:
-        logger.warning(f"Reindexing: deleting existing collection '{collection}'")
+        logger.warning(f"Reindexing: deleting existing collection '{collection_name}'")
     else:
-        logger.info(f"Upserting {len(documents)} documents to collection '{collection}'")
+        logger.info(f"Upserting {len(documents)} documents to collection '{collection_name}'")
 
     logger.debug(f"Connecting to database: {settings.database.host}:{settings.database.port}/{settings.database.dbname}")
     store = PGVector.from_documents(
         documents=documents,
         embedding=embeddings,
         connection=settings.database.connection_string,
-        collection_name=collection,
+        collection_name=collection_name,
         use_jsonb=True,
         pre_delete_collection=reindex,
     )
@@ -58,13 +58,13 @@ def upsert_documents(documents, settings: Settings, *, reindex: bool = False) ->
     return store
 
 
-def get_store(settings: Settings) -> PGVector:
+def get_store(settings: Settings, *, collection: str | None = None) -> PGVector:
     embeddings = build_embeddings(settings)
-    collection = settings.database.collection
-    logger.debug(f"Connecting to vector store collection '{collection}'")
+    collection_name = collection or settings.database.collection
+    logger.debug(f"Connecting to vector store collection '{collection_name}'")
     return PGVector(
         embeddings=embeddings,
         connection=settings.database.connection_string,
-        collection_name=collection,
+        collection_name=collection_name,
         use_jsonb=True,
     )

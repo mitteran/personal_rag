@@ -34,9 +34,14 @@ def _split_documents(documents: Iterable[Document], settings: Settings) -> List[
     return chunks
 
 
-def ingest_corpus(content_path: Path, *, reindex: bool = False, config_path: Path | None = None) -> int:
+def ingest_corpus(content_path: Path, *, reindex: bool = False, config_path: Path | None = None, collection: str | None = None) -> int:
     logger.info(f"Starting corpus ingestion from {content_path} (reindex={reindex})")
     settings = get_settings(config_path)
+
+    # Use folder name as collection if not specified
+    collection_name = collection or content_path.name
+    logger.info(f"Using collection: {collection_name}")
+
     documents = load_documents(content_path)
 
     if not documents:
@@ -44,24 +49,24 @@ def ingest_corpus(content_path: Path, *, reindex: bool = False, config_path: Pat
         raise FileNotFoundError(f"No supported documents found under {content_path}.")
 
     chunks = _split_documents(documents, settings)
-    upsert_documents(chunks, settings, reindex=reindex)
+    upsert_documents(chunks, settings, reindex=reindex, collection=collection_name)
     logger.info(f"Ingestion complete: {len(chunks)} chunks persisted")
     return len(chunks)
 
 
-def _build_qa_chain(settings: Settings, *, top_k: int | None = None) -> RetrievalQA:
+def _build_qa_chain(settings: Settings, *, top_k: int | None = None, collection: str | None = None) -> RetrievalQA:
     k_value = top_k or settings.rag.top_k
     logger.debug(f"Building QA chain with model={settings.rag.chat_model}, top_k={k_value}")
     llm = ChatOpenAI(model=settings.rag.chat_model, temperature=0.1)
-    store = get_store(settings)
+    store = get_store(settings, collection=collection)
     retriever = store.as_retriever(search_kwargs={"k": k_value})
     return RetrievalQA.from_chain_type(llm=llm, retriever=retriever, return_source_documents=True)
 
 
-def query(question: str, *, top_k: int | None = None, config_path: Path | None = None) -> Tuple[str, List[Document]]:
+def query(question: str, *, top_k: int | None = None, config_path: Path | None = None, collection: str | None = None) -> Tuple[str, List[Document]]:
     logger.info(f"Processing query: {question[:100]}...")
     settings = get_settings(config_path)
-    chain = _build_qa_chain(settings, top_k=top_k)
+    chain = _build_qa_chain(settings, top_k=top_k, collection=collection)
     result = chain.invoke({"query": question})
     answer = result["result"]
     sources = result.get("source_documents", [])
@@ -81,10 +86,10 @@ class ChatResult:
 
 
 def _build_conversational_components(
-    settings: Settings, *, top_k: int | None = None
+    settings: Settings, *, top_k: int | None = None, collection: str | None = None
 ):
     llm = ChatOpenAI(model=settings.rag.chat_model, temperature=0.1)
-    store = get_store(settings)
+    store = get_store(settings, collection=collection)
     retriever = store.as_retriever(search_kwargs={"k": top_k or settings.rag.top_k})
 
     contextualize_prompt = ChatPromptTemplate.from_messages(
@@ -133,6 +138,7 @@ def chat(
     *,
     top_k: int | None = None,
     config_path: Path | None = None,
+    collection: str | None = None,
 ) -> ChatResult:
     if not session_id:
         logger.error("Chat called without session_id")
@@ -141,7 +147,7 @@ def chat(
     logger.info(f"Chat message received for session {session_id}: {message[:100]}...")
     settings = get_settings(config_path)
     doc_chain, history_aware_retriever = _build_conversational_components(
-        settings, top_k=top_k
+        settings, top_k=top_k, collection=collection
     )
     session_history = _memory_store.get_session(session_id)
     history_messages = session_history.messages

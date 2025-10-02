@@ -33,6 +33,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     top_k: int | None = None
+    collection: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -177,6 +178,7 @@ def chat(payload: ChatRequest) -> ChatResponse:
             message=payload.message,
             top_k=payload.top_k,
             config_path=DEFAULT_CONFIG,
+            collection=payload.collection,
         )
     except MissingOpenAIKeyError as exc:  # pragma: no cover - configuration issue surfaced to client
         logger.error(f"Missing OpenAI API key for session {session_id}")

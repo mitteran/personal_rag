@@ -5,6 +5,7 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 ## Features
 
 - Ingest Markdown, text, PDF, and EPUB documents into a pgvector-backed index.
+- Multiple collections support: organize documents by topic in separate indexes.
 - Chunk documents with LangChain splitters tuned for long-form references.
 - Automatic embedding cache trims duplicate OpenAI calls during ingest and query.
 - Query via CLI or API with explicit source citations on every answer.
@@ -23,22 +24,35 @@ Local retrieval-augmented generation stack built with Python, LangChain, pgvecto
 
 ## Usage
 
-- Ingest documents from `data/raw/`:
+### Working with Collections
+
+The system supports multiple collections to organize documents by topic. Each folder in `data/raw/` automatically becomes a separate collection:
+
+- Ingest documents into collections (collection name defaults to folder name):
   ```bash
-  python -m src.pipeline.cli ingest data/raw --reindex
+  python -m src.pipeline.cli ingest data/raw/data_engineering
+  python -m src.pipeline.cli ingest data/raw/history
+  python -m src.pipeline.cli ingest data/raw/science
   ```
-- Ask a question against the index:
+- Or specify a custom collection name:
   ```bash
-  python -m src.pipeline.cli ask "What is the main gist of the documents?"
+  python -m src.pipeline.cli ingest data/raw/my_docs -c custom_name
   ```
-- Start an interactive chat session with conversational memory:
+- Ask a question against a specific collection:
   ```bash
-  python -m src.pipeline.cli chat
+  python -m src.pipeline.cli ask "What is Hadoop?" -c data_engineering
+  python -m src.pipeline.cli ask "Who was Napoleon?" -c history
+  ```
+- Start an interactive chat session with a specific collection:
+  ```bash
+  python -m src.pipeline.cli chat -c science
   ```
 - Launch the web chatbot (listens on `http://127.0.0.1:8000` by default):
   ```bash
- uvicorn src.web.app:app --reload
+  uvicorn src.web.app:app --reload
   ```
+
+**Note:** If no collection is specified in queries, the default collection from `config/settings.yaml` is used.
 
 ## Testing
 
